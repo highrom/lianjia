@@ -1,0 +1,217 @@
+# -*- coding:UTF-8 -*-
+import requests
+import re
+import traceback
+import os
+import time
+import random
+import json
+
+###################################
+#在xicidaili网站提取代理ip列表
+###################################
+def get_proxy_lists(py_headers):
+    try:
+        #存放代理ip列表
+        proxy_lists = []
+        #存放代理ip文件
+        py_fileSave = open(r'F:\wor\20170905\20170917anti-spider\ip_proxy_all.txt','w')
+        
+        for py_page in range(1,5):
+            #time.sleep(random.randint(1,5))
+            py_url = 'http://www.xicidaili.com/nn/%d'%py_page
+            py_req = requests.get(url = py_url,headers = py_headers)
+            #py_target_response.encoding = 'utf-8'
+            #正则表达式
+            py_pattern = re.compile(r'alt="Cn" /></td>\n      <td>(.*?)</td>\n      <td>(.*?)</td>.*?高匿</td>\n      <td>(.*?)</td>',re.S)
+            py_items = re.findall(py_pattern,py_req.text)    
+            #将匹配出的代理ip写入列表和文件
+            for py_item in py_items:
+                #将大写字母替换为为小写
+                tmp_value = py_item[2].replace('HTTPS','https')
+                tmp_value = tmp_value.replace('HTTP','http')
+                #将ip列表存入文件
+                py_fileSave.writelines('{\'' + tmp_value + '\':\'' + py_item[0] + ':' + py_item[1] + '\'}')
+                #将ip列表存入列表，直接存储列表内部为字符串
+                #proxy_lists.append('{\'' + tmp_value + '\':\'' + py_item[0] + ':' + py_item[1] + '\'}')
+                #将字符串转为字段存入列表中
+                proxy_lists.append(eval('{\'' + tmp_value + '\':\'' + py_item[0] + ':' + py_item[1] + '\'}'))
+                             
+    except:
+        print("Err:-------------------------------")
+        print(traceback.print_exc())
+    else:
+        py_fileSave.close()
+        print("success get_proxy_lists: " + str(len(proxy_lists)))
+        return proxy_lists
+
+######################################################################
+#通过访问ip.cip.cc将有效ip提取出来
+######################################################################   
+def get_useful_proxy_lists(py_headers,py_proxy_lists):
+    try:
+        py_proxy_useful_lists = []        
+        py_url = 'http://ip.cip.cc'
+        
+        if(len(py_proxy_lists) != 0):
+            py_req_no_proxy = requests.get(url = py_url, headers = py_headers)
+            #提取能够使用代理,py_proxy_item为字典类型
+            for py_proxy_item in py_proxy_lists:
+                try:
+                    py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_item,timeout = 20)
+                    if(py_req.text != py_req_no_proxy.text):
+                        py_proxy_useful_lists.append(py_proxy_item)
+                        #print(py_proxy_item)
+                except:
+                    #代理不能够使用出现响应错误时继续运行
+                    continue
+        
+        #保存能够使用代理ip
+        py_fileSave = open(r'F:\wor\20170905\20170917anti-spider\ip_proxy_useful.txt','w')
+        py_fileSave.write(str(py_proxy_useful_lists))
+        py_fileSave.close()
+        
+    except Exception:
+        print("Err:-------------------------------")
+        print(traceback.print_exc())
+    else:
+        print("success get_useful_proxy_lists: " + str(len(py_proxy_useful_lists)))
+        return py_proxy_useful_lists
+
+#####################################
+#使用代理提取链家数
+#####################################
+def get_lianjia_info(py_headers,py_proxy_lists):
+    py_url = 'https://nj.lianjia.com/zufang/pg'   
+    py_fileSave = open(r'F:\wor\20170905\20170915jingwei\py_result_nanjing_jingwei1-10.txt','a')
+    py_fileSave_usefulLists = open(r'F:\wor\20170905\20170917anti-spider\ip_proxy_useful_last.txt','w')
+    
+    try:        
+        #依次递进增加页数
+        for py_page in range(50,100):
+            py_url = py_url + str(py_page)
+            print('正在打开页：' + str(py_page))
+            
+            #在列表中依次取出代理
+            loop_num1 = 0
+            #for py_proxy_list in py_proxy_lists:
+            if len(py_proxy_lists) > 0:
+                loop_num1_1 = 0
+                while loop_num1 < len(py_proxy_lists):
+                    #如果代理不可用，则继续使用下一个
+                    try:
+                        py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_lists[loop_num1],timeout = 20)
+                    except:
+                        print('响应超时代理ip： ' +  str(py_proxy_lists[loop_num1]))
+                        #py_proxy_lists.remove(py_proxy_lists[loop_num1])
+                        #可以使用但是响应超时的代理多使用几次，不能一次响应不成功便删除
+                        #计算响应超时代理使用次数
+                        loop_num1_1 += 1
+                        #如果使用超过10次响应不成功，则抛弃此代理
+                        if loop_num1_1 > 10:
+                            loop_num1 += 1
+                            loop_num1_1 = 0
+                        continue
+
+                    #如果代理可用，则判断代理是否被链家封，如果被封则将此代理从列表中删除，取出下一个代理
+                    if(py_req.text.find('南京租房') != -1):
+                        #正则匹配
+                        py_pattern = re.compile(r'<div class="info-panel">.*?href="(.*?)" title="' +
+                                        '(.*?)">.*?<span class="region">' +
+                                        '(.*?)&nbsp;&nbsp;.*?<span class="zone"><span>' +
+                                        '(.*?)&nbsp;&nbsp;</span></span><span class="meters">' +
+                                        '(.*?)&nbsp;&nbsp;</span><span>' +
+                                        '(.*?)</span></div><div class="other"><div class="con"><a href=".*?>' +
+                                        '(.*?)</a><span>/</span>' +
+                                        '(.*?)<span>/</span>' +
+                                        '(.*?)</div></div>.*?<span class="num">' +
+                                        '(.*?)</span>元/月</div><div class="price-pre">' +
+                                        '(.*?)</div></div>')
+                        py_items = re.findall(py_pattern,py_req.text)
+                        print('匹配房源个数：' + str(len(py_items)))
+                        #如果能够返回正常页面则继续（不是代理服务器提示连接数过多的响应）
+                        if(len(py_items) != 0):
+                            #依次进入子链接取出房源经纬度
+                            for py_item in py_items:
+                                #防止被识别，随机间隔访问
+                                time.sleep(random.randint(1,10))
+                                loop_num2 = 0
+                                #对于每个代理ip，针对每个url都循环10次，如果放在所在循环外面，则针对所有网址，循环10次
+                                loop_num2_1 = 0
+                                while loop_num2 < len(py_proxy_lists):
+                                #for py_proxy_list2 in py_proxy_lists:
+                                    #如果代理不可用，则继续使用下一个
+                                    try:
+                                        py_req2 = requests.get(py_item[0],headers = py_headers,proxies = py_proxy_lists[loop_num2],timeout = 20)
+                                    except:
+                                        print('响应超时代理ip： ' + str(py_proxy_lists[loop_num2]))
+                                        #py_proxy_lists.remove(py_proxy_lists[loop_num2])
+                                        loop_num2_1 += 1
+                                        if loop_num2_1 > 10:
+                                            loop_num2_1 = 0
+                                            loop_num2 += 1
+                                        continue
+                                    #如果代理可用，则提取经纬度
+                                    if(py_req2.text.find('南京租房') != -1):
+                                        #打印当前子链接页面
+                                        print(py_item[0])
+                                        #循环+1
+                                        loop_num2 += 1
+                                        py_pattern2 = re.compile('resblockPosition:\'(.*?),(.*?)\',')
+                                        py_items2 = re.findall(py_pattern2,py_req2.text)
+                                        #判断子链接页面中是否有经纬度，如果没有的话py_items2[0][0]会出错
+                                        if(len(py_items2) == 0):
+                                            py_fileSave.writelines(py_item[0] + '\t' + ' ' + '\t' + ' ' + '\t' + py_item[1] + '\t' + py_item[2] + '\t' + py_item[3] + '\t' + py_item[4] + '\t' + py_item[5] + '\t' + py_item[6] + '\t' + py_item[7] + '\t' + py_item[8] + '\t' + py_item[9] + '\t' + py_item[10] + '\n')
+                                            break
+                                        else:
+                                            py_fileSave.writelines(py_item[0] + '\t' + py_items2[0][0] + '\t' + py_items2[0][1] + '\t' + py_item[1] + '\t' + py_item[2] + '\t' + py_item[3] + '\t' + py_item[4] + '\t' + py_item[5] + '\t' + py_item[6] + '\t' + py_item[7] + '\t' + py_item[8] + '\t' + py_item[9] + '\t' + py_item[10] + '\n')
+                                            break
+                                    else:
+                                        print('失效代理ip： ' + str(py_proxy_lists[loop_num2]))
+                                        py_proxy_lists.remove(py_proxy_lists[loop_num2])
+                                        #loop_num2 += 1
+                                        loop_num2_1 = 0
+                                        continue
+                            print('已保存页数：' + str(py_page))
+                            loop_num1 += 1
+                            break
+                        else:
+                            loop_num1 += 1
+                            continue
+                    else:
+                        print('失效代理ip： ' +  str(py_proxy_lists[loop_num1]))
+                        py_proxy_lists.remove(py_proxy_lists[loop_num1])
+                        #因为要重新取一个新的代理，响应超时代理计数重置为0
+                        loop_num1_1 = 0
+                        #因为已经删除一个代理ip，loop_num1不需要再加1了
+                        #loop_num1 += 1
+                        continue
+            else:
+                print('已经没有代理ip了。。')
+                break
+        #将未使用有效ip保存下来    
+        py_fileSave_usefulLists.write(str(py_proxy_lists))
+        py_fileSave_usefulLists.close()
+    except:
+        py_fileSave.close()
+        print("Err:-------------------------------")
+        print(traceback.print_exc())
+    else:
+        py_fileSave.close()
+        print("success get_lianjie_info!")
+
+    
+
+if __name__ == '__main__':
+    py_headers = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
+                    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Encoding':'gzip, deflate, br',
+                    'Accept-Language':'zh-CN,zh;q=0.8',
+                    'Upgrade-Insecure-Requests':'1'}
+    #提取全部代理ip
+    proxy_lists_all = get_proxy_lists(py_headers)
+    #提取有效代理ip
+    proxy_lists_useful = get_useful_proxy_lists(py_headers,proxy_lists_all)
+    #提取链家租房数据
+    get_lianjia_info(py_headers,proxy_lists_useful)
+    print('success program')
