@@ -107,8 +107,9 @@ def get_lianjia_info(py_headers,py_proxy_lists):
                         #可以使用但是响应超时的代理多使用几次，不能一次响应不成功便删除
                         #计算响应超时代理使用次数
                         loop_num1_1 += 1
-                        #如果使用超过10次响应不成功，则抛弃此代理
                         if loop_num1_1 > 10:
+                            #如果使用超过10次响应不成功，则抛弃此代理
+                            py_proxy_lists.remove(py_proxy_lists[loop_num1])
                             loop_num1 += 1
                             loop_num1_1 = 0
                         continue
