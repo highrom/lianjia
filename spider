@@ -17,7 +17,7 @@ def get_proxy_lists(py_headers):
         #存放代理ip文件
         py_fileSave = open(r'F:\wor\20170905\20170917anti-spider\ip_proxy_all.txt','w')
         
-        for py_page in range(1,5):
+        for py_page in range(1,2):
             #time.sleep(random.randint(1,5))
             py_url = 'http://www.xicidaili.com/nn/%d'%py_page
             py_req = requests.get(url = py_url,headers = py_headers)
@@ -58,7 +58,7 @@ def get_useful_proxy_lists(py_headers,py_proxy_lists):
             #提取能够使用代理,py_proxy_item为字典类型
             for py_proxy_item in py_proxy_lists:
                 try:
-                    py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_item,timeout = 20)
+                    py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_item,timeout = 50)
                     if(py_req.text != py_req_no_proxy.text):
                         py_proxy_useful_lists.append(py_proxy_item)
                         #print(py_proxy_item)
@@ -81,14 +81,17 @@ def get_useful_proxy_lists(py_headers,py_proxy_lists):
 #####################################
 #使用代理提取链家数
 #####################################
-def get_lianjia_info(py_headers,py_proxy_lists):
-    py_url = 'https://nj.lianjia.com/zufang/pg'   
-    py_fileSave = open(r'F:\wor\20170905\20170915jingwei\py_result_nanjing_jingwei1-10.txt','a')
+def get_lianjia_info(py_headers,py_proxy_lists, page_start, page_end):
+
+    py_url = 'https://nj.lianjia.com/zufang/pg'
+    
+    py_fileSave = open(r'F:\wor\20170905\20170915jingwei\py_result_nanjing_jingwei20171019.txt','a')
     py_fileSave_usefulLists = open(r'F:\wor\20170905\20170917anti-spider\ip_proxy_useful_last.txt','w')
     
-    try:        
+    try:
+        
         #依次递进增加页数
-        for py_page in range(50,100):
+        for py_page in range(page_start, page_end):
             py_url = py_url + str(py_page)
             print('正在打开页：' + str(py_page))
             
@@ -100,18 +103,17 @@ def get_lianjia_info(py_headers,py_proxy_lists):
                 while loop_num1 < len(py_proxy_lists):
                     #如果代理不可用，则继续使用下一个
                     try:
-                        py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_lists[loop_num1],timeout = 20)
+                        py_req = requests.get(url = py_url,headers = py_headers,proxies = py_proxy_lists[loop_num1],timeout = 200)
                     except:
                         print('响应超时代理ip： ' +  str(py_proxy_lists[loop_num1]))
-                        #py_proxy_lists.remove(py_proxy_lists[loop_num1])
                         #可以使用但是响应超时的代理多使用几次，不能一次响应不成功便删除
                         #计算响应超时代理使用次数
                         loop_num1_1 += 1
+                        #如果使用超过10次响应不成功，则抛弃此代理
                         if loop_num1_1 > 10:
-                            #如果使用超过10次响应不成功，则抛弃此代理
                             py_proxy_lists.remove(py_proxy_lists[loop_num1])
-                            loop_num1 += 1
-                            loop_num1_1 = 0
+                            #loop_num1 += 1
+                            loop_num1_1 = 0                 
                         continue
 
                     #如果代理可用，则判断代理是否被链家封，如果被封则将此代理从列表中删除，取出下一个代理
@@ -135,7 +137,7 @@ def get_lianjia_info(py_headers,py_proxy_lists):
                             #依次进入子链接取出房源经纬度
                             for py_item in py_items:
                                 #防止被识别，随机间隔访问
-                                time.sleep(random.randint(1,10))
+                                time.sleep(random.randint(1,5))
                                 loop_num2 = 0
                                 #对于每个代理ip，针对每个url都循环10次，如果放在所在循环外面，则针对所有网址，循环10次
                                 loop_num2_1 = 0
@@ -143,14 +145,14 @@ def get_lianjia_info(py_headers,py_proxy_lists):
                                 #for py_proxy_list2 in py_proxy_lists:
                                     #如果代理不可用，则继续使用下一个
                                     try:
-                                        py_req2 = requests.get(py_item[0],headers = py_headers,proxies = py_proxy_lists[loop_num2],timeout = 20)
+                                        py_req2 = requests.get(py_item[0],headers = py_headers,proxies = py_proxy_lists[loop_num2],timeout = 200)
                                     except:
                                         print('响应超时代理ip： ' + str(py_proxy_lists[loop_num2]))
-                                        #py_proxy_lists.remove(py_proxy_lists[loop_num2])
                                         loop_num2_1 += 1
                                         if loop_num2_1 > 10:
+                                            py_proxy_lists.remove(py_proxy_lists[loop_num2])
                                             loop_num2_1 = 0
-                                            loop_num2 += 1
+                                            #loop_num2 += 1
                                         continue
                                     #如果代理可用，则提取经纬度
                                     if(py_req2.text.find('南京租房') != -1):
@@ -213,6 +215,10 @@ if __name__ == '__main__':
     proxy_lists_all = get_proxy_lists(py_headers)
     #提取有效代理ip
     proxy_lists_useful = get_useful_proxy_lists(py_headers,proxy_lists_all)
+    
+    page_start = 1
+    page_end = 10
+    
     #提取链家租房数据
-    get_lianjia_info(py_headers,proxy_lists_useful)
+    get_lianjia_info(py_headers,proxy_lists_useful, page_start, page_end)
     print('success program')
